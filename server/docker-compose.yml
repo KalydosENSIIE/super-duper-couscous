@@ -1,0 +1,55 @@
+version: '3'
+
+services:
+  influxdb:
+    image: 'influxdb:latest'
+    container_name: influxdb
+    ports:
+      - '8086:8086'
+    env_file:
+      - 'influxdb-variables.env'
+    volumes:
+      - 'influxdb-data:/var/lib/influxdb'
+    restart: 'always'
+  
+  grafana:
+    image: 'grafana/grafana:latest'
+    container_name: grafana
+    ports:
+      - '3000:3000'
+    env_file:
+      - 'grafana-variables.env'
+    volumes:
+      - 'grafana-data:/var/lib/grafana'
+    restart: 'always'
+    depends_on:
+      - influxdb
+
+  node-red:
+    image: 'nodered/node-red:latest'
+    container_name: node-red
+    ports:
+      - '1880:1880'
+    env_file:
+      - 'node-red-variables.env'
+    volumes:
+      - 'node-red-data:/data'
+    restart: 'always'
+    depends_on:
+      - mqtt-broker
+      - influxdb
+  
+  mqtt-broker:
+    image: eclipse-mosquitto:latest
+    container_name: mqtt-broker
+    ports:
+      - '1883:1883'
+    volumes:
+      - 'mqtt-broker-data:/mosquitto'
+    restart: 'always'
+
+volumes:
+  grafana-data:
+  influxdb-data:
+  node-red-data:
+  mqtt-broker-data:
