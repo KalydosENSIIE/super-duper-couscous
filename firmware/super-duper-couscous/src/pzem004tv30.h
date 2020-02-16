@@ -1,11 +1,40 @@
-#pragma once
+#ifndef _PZEM004Tv30_H
+#define _PZEM004Tv30_H
 
-void initialize_UART(void);
+#include "driver/gpio.h"
+#include "driver/uart.h"
 
-esp_err_t pzem004tv30_read_all(float *pfVoltage, float *pfCurrent, float *pfPower, float *pfEnergy, float *pfFrequency, float *pfPower_factor);
+#define     PZEM004TV30_MODBUS_DEFAULT_ADDRESS     ( (uint16_t) 0xF8 )
 
-uint16_t PZEM004Tv30_receive(uint8_t *resp, uint16_t maxLength);
-bool PZEM004Tv30_checkCRC(const uint8_t *buf, uint16_t len);
-void PZEM004Tv30_search(void);
-esp_err_t PZEM004Tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const uint16_t regCount, const uint8_t slave_addr);
-uint16_t PZEM004Tv30_CRC16(const uint8_t *data, uint16_t len);
+// alarm isn't there coz I have no use for it =/
+typedef struct pzem004tv30_measurements
+{
+    float voltage;      // V
+    float current;      // A
+    float power;        // W
+    float energy;       // Wh
+    float frequency;    // Hz
+    float power_factor; // .
+} pzem004tv30_measurements_t;
+
+
+typedef struct pzem004tv30
+{
+    uint16_t modbus_address;
+    uart_port_t uart_num;
+    int tx_io_num;
+    int rx_io_num;
+    pzem004tv30_measurements_t measurements;
+} pzem004tv30_t;
+
+esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t);
+
+esp_err_t pzem004tv30_update_measurements(pzem004tv30_t * pzem004t);
+uint16_t pzem004tv30_receive(uint8_t *resp, uint16_t maxLength);
+bool pzem004tv30_checkCRC(const uint8_t *buf, uint16_t len);
+void pzem004tv30_search(void);
+esp_err_t pzem004tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const uint16_t regCount, const uint8_t slave_addr);
+
+
+
+#endif // _PZEM004Tv30_H

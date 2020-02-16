@@ -1,16 +1,18 @@
 
 #include "driver/gpio.h"
 #include "driver/uart.h"
-#include "rom/crc.h"
 #include "esp_log.h"
 
 #include "pzem004tv30.h"
 
+#define TAG "pzem004tv30"
 
 #define     UART_BUF_SIZE   150
-#define     PZEM004T_MODBUS_ADDRESS     0xF8
 
-#define     VOLTAGE_LL  
+#define     PZEM004T_ERROR_READ_INPUT_REG   ( (uint8_t) 0x84 )
+
+
+static uint16_t pzem004tv30_CRC16(const uint8_t *data, uint16_t len);
 
 typedef enum {
     PZEM004T_FUNCTION_READ_HOLDING_REG  = 0x03,
@@ -26,13 +28,13 @@ typedef enum {
     PZEM004T_ERROR_ILLEGAL_ADDRESS      = 0x02,
     PZEM004T_ERROR_ILLEGAL_DATA         = 0x03,
     PZEM004T_ERROR_SLAVE_ERROR          = 0x04,
-} pzem004t_modbus_error_t;
+} pzem004t_error_READ_INPUT_REG_t;
 
 
 
 
 
-void initialize_UART(void)
+esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t)
 {
     /* Configure parameters of an UART driver,
      * communication pins and install the driver */
@@ -42,77 +44,100 @@ void initialize_UART(void)
         .parity    = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .use_ref_tick = 1,
+        .use_ref_tick = true,
     };
     
-    ESP_ERROR_CHECK( uart_param_config(UART_NUM_2, &uart_config) );
-    //uart_set_pin(UART_NUM_2, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS);
+    if( ESP_OK != uart_param_config( pzem004t->uart_num,
+                                     &uart_config ) )
+    {
+        ESP_LOGE(TAG, "Failed to set UART configuration parameters.\n");
+        return ESP_FAIL;
+    }
     
-    ESP_ERROR_CHECK( uart_driver_install(UART_NUM_2, UART_BUF_SIZE, 0, 0, NULL, 0) );
+    if( ESP_OK != uart_driver_install( pzem004t->uart_num, 
+                                       UART_BUF_SIZE, 0, 0, NULL, 0 ) )
+    {
+        ESP_LOGE(TAG, "Failed to install UART driver.\n");
+        return ESP_FAIL;
+    }
 
-    ESP_ERROR_CHECK( uart_set_pin(UART_NUM_2, UART_NUM_2_TXD_DIRECT_GPIO_NUM, UART_NUM_2_RXD_DIRECT_GPIO_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) );
+    if( ESP_OK != uart_set_pin( pzem004t->uart_num, 
+                                pzem004t->tx_io_num,
+                                pzem004t->rx_io_num,
+                                UART_PIN_NO_CHANGE,
+                                UART_PIN_NO_CHANGE ) )
+    {
+        ESP_LOGE(TAG, "Failed to set UART pin numbers.\n");
+        return ESP_FAIL;
+    }
 
-    ESP_ERROR_CHECK( uart_set_mode(UART_NUM_2, UART_MODE_UART) );
+    if( ESP_OK != uart_set_mode( pzem004t->uart_num,
+                                 UART_MODE_UART ) )
+    {
+        ESP_LOGE(TAG, "Failed to set UART configuration parameters.\n");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Successfully configured UART.\n");
+    return ESP_OK;
 }
 
-esp_err_t pzem004tv30_read_all(float *pfVoltage, float *pfCurrent, float *pfPower, float *pfEnergy, float *pfFrequency, float *pfPower_factor)
+esp_err_t pzem004tv30_update_measurements(pzem004tv30_t * pzem004t)
 {
     uint16_t rawVoltage;
     uint32_t rawCurrent, rawPower, rawEnergy;
     uint16_t rawFrequency, rawPower_Factor;
 
-    uint8_t response[25];
+    uint8_t reply[25];
 
-    PZEM004Tv30_sendCmd8(PZEM004T_FUNCTION_READ_INPUT_REG, 0x00, 0x0A, 0xF8);
-    PZEM004Tv30_receive(response, 25);
-
-    //uart_read_bytes( UART_NUM_2, response, 20, pdMS_TO_TICKS(50) );
-    if( response[1] != (uint8_t) 0x04 )
+    if( ESP_FAIL ==  pzem004tv30_sendCmd8(PZEM004T_FUNCTION_READ_INPUT_REG, 0x00, 0x0A, 0xF8) )
     {
+        ESP_LOGW(TAG, "Failed to send command to pzem module.\n");
+        return ESP_FAIL;
+    }
+    if( 0 == pzem004tv30_receive(reply, 25) )
+    {
+        ESP_LOGW(TAG, "Failed to receive reply from pzem module.\n");
         return ESP_FAIL;
     }
 
-    printf("Response :");
-    int i;
-    for (i=0 ; i<25 ; i++)
+    if( PZEM004T_ERROR_READ_INPUT_REG == reply[1] )
     {
-        printf("%02X, ", response[i]);
+        ESP_LOGW(TAG, "Received incorrect reply from pzem module. "
+                      "Error num : %02X\n", reply[2] );
+        return ESP_FAIL;
     }
-    printf("\n");
 
+    rawVoltage = ( ((uint16_t) reply[3]) << 8 ) +
+                 (  (uint16_t) reply[4]  << 0 );
 
-    rawVoltage = ( ((uint16_t) response[3]) << 8 ) +
-                 (  (uint16_t) response[4]  << 0 );
-
-    rawCurrent = ( ((uint32_t) response[5]) <<  8 ) +
-                 ( ((uint32_t) response[6]) <<  0 ) +
-                 ( ((uint32_t) response[7]) << 24 ) +
-                 ( ((uint32_t) response[8]) << 16 );
-    printf("raw current : %02X %02X %02X %02X : %u\n", response[5], response[6], response[7], response[8], rawCurrent);
+    rawCurrent = ( ((uint32_t) reply[5]) <<  8 ) +
+                 ( ((uint32_t) reply[6]) <<  0 ) +
+                 ( ((uint32_t) reply[7]) << 24 ) +
+                 ( ((uint32_t) reply[8]) << 16 );
     
-    rawPower   = ( ((uint32_t) response[9])  <<  8 ) +
-                 ( ((uint32_t) response[10]) <<  0 ) +
-                 ( ((uint32_t) response[11]) << 24 ) +
-                 ( ((uint32_t) response[12]) << 16 );
+    rawPower   = ( ((uint32_t) reply[9])  <<  8 ) +
+                 ( ((uint32_t) reply[10]) <<  0 ) +
+                 ( ((uint32_t) reply[11]) << 24 ) +
+                 ( ((uint32_t) reply[12]) << 16 );
 
-    rawEnergy  = ( ((uint32_t) response[13]) <<  8 ) +
-                 ( ((uint32_t) response[14]) <<  0 ) +
-                 ( ((uint32_t) response[15]) << 24 ) +
-                 ( ((uint32_t) response[16]) << 16 );
+    rawEnergy  = ( ((uint32_t) reply[13]) <<  8 ) +
+                 ( ((uint32_t) reply[14]) <<  0 ) +
+                 ( ((uint32_t) reply[15]) << 24 ) +
+                 ( ((uint32_t) reply[16]) << 16 );
 
-    rawFrequency = ( ((uint16_t) response[17]) << 8 ) +
-                   (  (uint16_t) response[18]  << 0 );
+    rawFrequency = ( ((uint16_t) reply[17]) << 8 ) +
+                   (  (uint16_t) reply[18]  << 0 );
 
-    rawPower_Factor = ( ((uint16_t) response[19]) << 8 ) +
-                      (  (uint16_t) response[20]  << 0 );
+    rawPower_Factor = ( ((uint16_t) reply[19]) << 8 ) +
+                      (  (uint16_t) reply[20]  << 0 );
 
-    // TODO check float is big enough for 20 odd years of energy 
-    *pfVoltage      = rawVoltage     / 10.0; // Raw voltage in 0.1V
-    *pfCurrent      = rawCurrent     / 1000.0; // Raw current in 0.001A
-    *pfPower        = rawPower       / 10.0; // Raw power in   0.1W
-    *pfEnergy       = rawEnergy      / 1.0; // Raw energy in  1Wh
-    *pfFrequency    = rawFrequency   / 10.0; // Raw frequency in 0.1Hz
-    *pfPower_factor = rawPower_Factor/ 100.0; // Raw power factor in 0.01
+    pzem004t->measurements.voltage      = rawVoltage     / 10.0; // Raw voltage in 0.1V
+    pzem004t->measurements.current      = rawCurrent     / 1000.0; // Raw current in 0.001A
+    pzem004t->measurements.power        = rawPower       / 10.0; // Raw power in   0.1W
+    pzem004t->measurements.energy       = rawEnergy      / 1.0; // Raw energy in  1Wh
+    pzem004t->measurements.frequency    = rawFrequency   / 10.0; // Raw frequency in 0.1Hz
+    pzem004t->measurements.power_factor = rawPower_Factor/ 100.0; // Raw power factor in 0.01
 
     return ESP_OK;
 }
@@ -129,7 +154,7 @@ esp_err_t pzem004tv30_read_all(float *pfVoltage, float *pfCurrent, float *pfPowe
  *
  * @return success
 */
-esp_err_t PZEM004Tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const uint16_t regCount, const uint8_t slave_addr)
+esp_err_t pzem004tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const uint16_t regCount, const uint8_t slave_addr)
 {
     uint8_t command [8] = { 0 };
     uint16_t crc;
@@ -154,7 +179,7 @@ esp_err_t PZEM004Tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const ui
     command[4] = (uint8_t) (regCount >> 8) & 0xFF; // high byte
     command[5] = (uint8_t) regCount & 0xFF; // low byte
 
-    crc = PZEM004Tv30_CRC16(command, 6);
+    crc = pzem004tv30_CRC16(command, 6);
     command[6] = (uint8_t) ( crc >> 8 ) & 0xFF;
     command[7] = (uint8_t) ( crc >> 0 ) & 0xFF;
 
@@ -170,14 +195,14 @@ esp_err_t PZEM004Tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const ui
     return ESP_OK;
 }
 
-void PZEM004Tv30_search(void){
+void pzem004tv30_search(void){
     static uint8_t response[7];
 
     for(uint16_t addr = 0x01; addr <= 0xF8; addr++){
 
-        PZEM004Tv30_sendCmd8((uint8_t) PZEM004T_FUNCTION_READ_INPUT_REG, 0x00, 0x01, addr);
+        pzem004tv30_sendCmd8((uint8_t) PZEM004T_FUNCTION_READ_INPUT_REG, 0x00, 0x01, addr);
 
-        if(PZEM004Tv30_receive(response, 7) != 7){ // Something went wrong
+        if(pzem004tv30_receive(response, 7) != 7){ // Something went wrong
             continue;
         } else {
             printf("Device on addr %02X", addr);
@@ -195,7 +220,7 @@ void PZEM004Tv30_search(void){
  *
  * @return number of bytes read
 */
-uint16_t PZEM004Tv30_receive(uint8_t *resp, uint16_t maxLength)
+uint16_t pzem004tv30_receive(uint8_t *resp, uint16_t maxLength)
 {
 /*    unsigned long startTime = millis(); // Start time for Timeout
     uint8_t index = 0; // Bytes we have read
@@ -214,7 +239,7 @@ uint16_t PZEM004Tv30_receive(uint8_t *resp, uint16_t maxLength)
     length = uart_read_bytes( UART_NUM_2, resp, maxLength, pdMS_TO_TICKS(100) );
 
     // Check CRC with the number of bytes read
-    if(!PZEM004Tv30_checkCRC(resp, length)){
+    if(!pzem004tv30_checkCRC(resp, length)){
         return 0;
     }
 
@@ -232,11 +257,11 @@ uint16_t PZEM004Tv30_receive(uint8_t *resp, uint16_t maxLength)
  *
  * @return is the buffer check sum valid
 */
-bool PZEM004Tv30_checkCRC(const uint8_t *buf, uint16_t len){
+bool pzem004tv30_checkCRC(const uint8_t *buf, uint16_t len){
     if(len <= 2) // Sanity check
         return false;
 
-    uint16_t crc = PZEM004Tv30_CRC16(buf, len - 2); // Compute CRC of data
+    uint16_t crc = pzem004tv30_CRC16(buf, len - 2); // Compute CRC of data
     return ((uint16_t)buf[len-2]  | (uint16_t)buf[len-1] << 8) == crc;
 }
 
@@ -289,7 +314,7 @@ static const uint16_t crcTable[] = {
  *
  * @return Calculated CRC
 */
-uint16_t PZEM004Tv30_CRC16(const uint8_t *data, uint16_t len)
+uint16_t pzem004tv30_CRC16(const uint8_t *data, uint16_t len)
 {
     uint8_t nTemp; // CRC table index
     uint16_t crc = 0xFFFF; // Default value

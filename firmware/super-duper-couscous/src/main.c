@@ -15,9 +15,14 @@ void vMeasurementTask( void *pvParameters )
 {
     printf("Entering vMeasurementTask\n");
 
-    float fVoltage = 0.0, fCurrent = 0.0, fPower = 0.0, fEnergy = 0.0, fFrequency = 0.0, fPower_factor = 0.0;
+    pzem004tv30_t pzem004t = {  .modbus_address = PZEM004TV30_MODBUS_DEFAULT_ADDRESS,
+                                .uart_num = UART_NUM_2,
+                                .tx_io_num = UART_NUM_2_TXD_DIRECT_GPIO_NUM,
+                                .rx_io_num = UART_NUM_2_RXD_DIRECT_GPIO_NUM,
+                                .measurements = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }
+                             };
 
-    initialize_UART();
+    pzem004tv30_initialize_UART( &pzem004t );
 
     
 
@@ -26,8 +31,9 @@ void vMeasurementTask( void *pvParameters )
         
         printf("Entering vMeasurementTask infinite loop\n");
 
-        pzem004tv30_read_all(&fVoltage, &fCurrent, &fPower, &fEnergy, &fFrequency, &fPower_factor) ;
-        printf("%.2fV, %.2fA, %.2fW, %.2fWh, %.2fHz, pf=%.2f\n", fVoltage, fCurrent, fPower, fEnergy, fFrequency, fPower_factor);
+        pzem004tv30_update_measurements( &pzem004t );
+        
+        printf("%.2fV, %.2fA, %.2fW, %.2fWh, %.2fHz, pf=%.2f\n", pzem004t.measurements.voltage, pzem004t.measurements.current, pzem004t.measurements.power, pzem004t.measurements.energy, pzem004t.measurements.frequency, pzem004t.measurements.power_factor);
         vTaskDelay( pdMS_TO_TICKS(1000) );
     }
 }
@@ -49,12 +55,11 @@ void app_main()
     printf("%luMB %s flash\n", (unsigned long) (spi_flash_get_chip_size() / (1024 * 1024) ),
             (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
+    esp_log_level_set("*", ESP_LOG_ERROR);
+    esp_log_level_set("pzem004tv30", ESP_LOG_DEBUG);
+
     xTaskCreate( vMeasurementTask,  "measure", 4096, NULL, 30, NULL);
-    printf("end of app_main\n");
-    /*for(;;)
-    {
-        vTaskDelay( pdMS_TO_TICKS(1000) );
-    }
-    */
+
+    // app_main task is killed when we let it return
 }
 
