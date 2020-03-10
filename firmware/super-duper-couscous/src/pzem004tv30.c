@@ -12,7 +12,7 @@
 #define     PZEM004T_ERROR_READ_INPUT_REG   ( (uint8_t) 0x84 )
 
 
-static uint16_t pzem004tv30_CRC16(const uint8_t *data, uint16_t len);
+static uint16_t pzem004tv30_CRC16( const uint8_t *data, const uint16_t len );
 
 typedef enum {
     PZEM004T_FUNCTION_READ_HOLDING_REG  = 0x03,
@@ -82,7 +82,7 @@ esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t)
     return ESP_OK;
 }
 
-esp_err_t pzem004tv30_update_measurements(pzem004tv30_t *pzem004t)
+esp_err_t pzem004tv30_update_measurements( pzem004tv30_t * const pzem004t )
 {
     uint16_t rawVoltage;
     uint32_t rawCurrent, rawPower, rawEnergy;
@@ -90,7 +90,7 @@ esp_err_t pzem004tv30_update_measurements(pzem004tv30_t *pzem004t)
 
     uint8_t replyBuf[25];
 
-    if( ESP_FAIL ==  pzem004tv30_sendCmd8(PZEM004T_FUNCTION_READ_INPUT_REG, 0x00, 0x0A, 0xF8) )
+    if( ESP_FAIL ==  pzem004tv30_sendCmd8(pzem004t, PZEM004T_FUNCTION_READ_INPUT_REG, 0x00, 0x0A, 0xF8) )
     {
         ESP_LOGW(TAG, "Failed to send command to pzem module.\n");
         return ESP_FAIL;
@@ -154,7 +154,7 @@ esp_err_t pzem004tv30_update_measurements(pzem004tv30_t *pzem004t)
  *
  * @return success
 */
-esp_err_t pzem004tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const uint16_t regCount, const uint8_t slave_addr)
+esp_err_t pzem004tv30_sendCmd8( const pzem004tv30_t * const pzem004t, const uint8_t cmd, const uint16_t rAddr, const uint16_t regCount, const uint8_t slave_addr )
 {
     uint8_t command [8] = { 0 };
     uint16_t crc;
@@ -183,12 +183,13 @@ esp_err_t pzem004tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const ui
     command[6] = (uint8_t) ( crc >> 8 ) & 0xFF;
     command[7] = (uint8_t) ( crc >> 0 ) & 0xFF;
 
-    printf("Sending command to PZEM : %02X %02X %02X %02X %02X %02X %02X %02X\n", 
+    ESP_LOGD( TAG, "Sending command to PZEM : %02X %02X %02X %02X %02X %02X %02X %02X\n", 
                                                                     command[0], command[1],
                                                                     command[2], command[3], 
                                                                     command[4], command[5], 
-                                                                    command[6], command[7]);
-    if ( -1 == uart_write_bytes( UART_NUM_2, (char *) command, 8 ) )
+                                                                    command[6], command[7]
+            );
+    if ( -1 == uart_write_bytes( pzem004t->uart_num, (char *) command, 8 ) )
     {
         return ESP_FAIL;
     }
@@ -223,7 +224,7 @@ void pzem004tv30_search( void ){
  *
  * @return number of bytes read
 */
-uint16_t pzem004tv30_receive( pzem004tv30_t *pzem004t, uint8_t *response, uint16_t maxLength )
+uint16_t pzem004tv30_receive( const pzem004tv30_t * const pzem004t, uint8_t * const response, const uint16_t maxLength )
 {
     uint8_t nbBytesReceived;
     nbBytesReceived = uart_read_bytes( pzem004t->uart_num, response, maxLength, pdMS_TO_TICKS(100) );
@@ -239,7 +240,7 @@ uint16_t pzem004tv30_receive( pzem004tv30_t *pzem004t, uint8_t *response, uint16
 
 
 /*!
- * PZEM004Tv30::checkCRC
+ * pzem004tv30_checkCRC
  *
  * Performs CRC check of the buffer up to len-2 and compares this checksum to the last two bytes
  *
@@ -248,17 +249,36 @@ uint16_t pzem004tv30_receive( pzem004tv30_t *pzem004t, uint8_t *response, uint16
  *
  * @return is the buffer check sum valid
 */
-bool pzem004tv30_checkCRC(const uint8_t *buf, uint16_t len){
-    if(len <= 2) // Sanity check
-        return false;
+bool pzem004tv30_checkCRC( const uint8_t * const buf, const uint16_t len )
+{
+    uint16_t bufCRC, calculatedCRC;
 
-    uint16_t crc = pzem004tv30_CRC16(buf, len - 2); // Compute CRC of data
-    return ((uint16_t)buf[len-2]  | (uint16_t)buf[len-1] << 8) == crc;
+    /* Sanity check */
+    if(len <= 2)
+    {
+        return false;
+    }
+
+    bufCRC = 0;
+    bufCRC |=   (uint16_t) buf[len-2]; /* LOW BYTE */
+    bufCRC |= ( (uint16_t) buf[len-1] ) << 8; /* HIGH BYTE */
+
+    calculatedCRC = pzem004tv30_CRC16(buf, len - 2); // Compute CRC of data
+
+    if( bufCRC == calculatedCRC )
+    {
+        return true;
+    } else
+    {
+        return false;
+    }
+
+    return false;
 }
 
 
 /*!
- * PZEM004Tv30::CRC16
+ * pzem004tv30_CRC16
  *
  * Calculate the CRC16-Modbus for a buffer
  * Based on https://www.modbustools.com/modbus_crc16.html
@@ -268,7 +288,7 @@ bool pzem004tv30_checkCRC(const uint8_t *buf, uint16_t len){
  *
  * @return Calculated CRC
 */
-uint16_t pzem004tv30_CRC16(const uint8_t *data, uint16_t len)
+uint16_t pzem004tv30_CRC16( const uint8_t *data, const uint16_t len )
 {
     uint8_t nTemp; // CRC table index
     uint16_t crc = 0xFFFF; // Default value
@@ -276,8 +296,7 @@ uint16_t pzem004tv30_CRC16(const uint8_t *data, uint16_t len)
     /* Sanity check on buffer length */
     if( len > 1024 )
     {
-        len = 1024;
-        ESP_LOGE(TAG, "Buffer length given for CRC calculation seems too high. " \
+        ESP_LOGW(TAG, "Buffer length given for CRC calculation seems too high. " \
                       "Probably an error.");
     }
 
