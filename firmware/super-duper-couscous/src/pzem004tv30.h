@@ -14,7 +14,7 @@ typedef struct pzem004tv30_measurements
     float power;        // W
     float energy;       // Wh
     float frequency;    // Hz
-    float power_factor; // .
+    float powerFactor; // .
 } pzem004tv30_measurements_t;
 
 
@@ -27,13 +27,13 @@ typedef struct pzem004tv30
     pzem004tv30_measurements_t measurements;
 } pzem004tv30_t;
 
-esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t);
+esp_err_t pzem004tv30_initialize_UART( pzem004tv30_t * pzem004t );
 
-esp_err_t pzem004tv30_update_measurements(pzem004tv30_t * pzem004t);
-uint16_t pzem004tv30_receive(uint8_t *resp, uint16_t maxLength);
-bool pzem004tv30_checkCRC(const uint8_t *buf, uint16_t len);
-void pzem004tv30_search(void);
-esp_err_t pzem004tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const uint16_t regCount, const uint8_t slave_addr);
+esp_err_t pzem004tv30_update_measurements( pzem004tv30_t * pzem004t );
+uint16_t pzem004tv30_receive( pzem004tv30_t *pzem004t, uint8_t *response, uint16_t maxLength );
+bool pzem004tv30_checkCRC( const uint8_t *buf, uint16_t len );
+void pzem004tv30_search( void );
+esp_err_t pzem004tv30_sendCmd8( const uint8_t cmd, const uint16_t rAddr, const uint16_t regCount, const uint8_t slave_addr );
 
 
 

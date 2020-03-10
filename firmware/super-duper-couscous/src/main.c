@@ -33,7 +33,7 @@ void vMeasurementTask( void *pvParameters )
 
         pzem004tv30_update_measurements( &pzem004t );
         
-        printf("%.2fV, %.2fA, %.2fW, %.2fWh, %.2fHz, pf=%.2f\n", pzem004t.measurements.voltage, pzem004t.measurements.current, pzem004t.measurements.power, pzem004t.measurements.energy, pzem004t.measurements.frequency, pzem004t.measurements.power_factor);
+        printf("%.2fV, %.2fA, %.2fW, %.2fWh, %.2fHz, pf=%.2f\n", pzem004t.measurements.voltage, pzem004t.measurements.current, pzem004t.measurements.power, pzem004t.measurements.energy, pzem004t.measurements.frequency, pzem004t.measurements.powerFactor);
         vTaskDelay( pdMS_TO_TICKS(1000) );
     }
 }

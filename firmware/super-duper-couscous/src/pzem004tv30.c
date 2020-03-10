@@ -82,62 +82,62 @@ esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t)
     return ESP_OK;
 }
 
-esp_err_t pzem004tv30_update_measurements(pzem004tv30_t * pzem004t)
+esp_err_t pzem004tv30_update_measurements(pzem004tv30_t *pzem004t)
 {
     uint16_t rawVoltage;
     uint32_t rawCurrent, rawPower, rawEnergy;
-    uint16_t rawFrequency, rawPower_Factor;
+    uint16_t rawFrequency, rawPowerFactor;
 
-    uint8_t reply[25];
+    uint8_t replyBuf[25];
 
     if( ESP_FAIL ==  pzem004tv30_sendCmd8(PZEM004T_FUNCTION_READ_INPUT_REG, 0x00, 0x0A, 0xF8) )
     {
         ESP_LOGW(TAG, "Failed to send command to pzem module.\n");
         return ESP_FAIL;
     }
-    if( 0 == pzem004tv30_receive(reply, 25) )
+    if( 0 == pzem004tv30_receive( pzem004t, replyBuf, 25 ) )
     {
         ESP_LOGW(TAG, "Failed to receive reply from pzem module.\n");
         return ESP_FAIL;
     }
 
-    if( PZEM004T_ERROR_READ_INPUT_REG == reply[1] )
+    if( PZEM004T_ERROR_READ_INPUT_REG == replyBuf[1] )
     {
         ESP_LOGW(TAG, "Received incorrect reply from pzem module. "
-                      "Error num : %02X\n", reply[2] );
+                      "Error num : %02X\n", replyBuf[2] );
         return ESP_FAIL;
     }
 
-    rawVoltage = ( ((uint16_t) reply[3]) << 8 ) +
-                 (  (uint16_t) reply[4]  << 0 );
+    rawVoltage = ( ((uint16_t) replyBuf[3]) << 8 ) +
+                 (  (uint16_t) replyBuf[4]  << 0 );
 
-    rawCurrent = ( ((uint32_t) reply[5]) <<  8 ) +
-                 ( ((uint32_t) reply[6]) <<  0 ) +
-                 ( ((uint32_t) reply[7]) << 24 ) +
-                 ( ((uint32_t) reply[8]) << 16 );
+    rawCurrent = ( ((uint32_t) replyBuf[5]) <<  8 ) +
+                 ( ((uint32_t) replyBuf[6]) <<  0 ) +
+                 ( ((uint32_t) replyBuf[7]) << 24 ) +
+                 ( ((uint32_t) replyBuf[8]) << 16 );
     
-    rawPower   = ( ((uint32_t) reply[9])  <<  8 ) +
-                 ( ((uint32_t) reply[10]) <<  0 ) +
-                 ( ((uint32_t) reply[11]) << 24 ) +
-                 ( ((uint32_t) reply[12]) << 16 );
+    rawPower   = ( ((uint32_t) replyBuf[9])  <<  8 ) +
+                 ( ((uint32_t) replyBuf[10]) <<  0 ) +
+                 ( ((uint32_t) replyBuf[11]) << 24 ) +
+                 ( ((uint32_t) replyBuf[12]) << 16 );
 
-    rawEnergy  = ( ((uint32_t) reply[13]) <<  8 ) +
-                 ( ((uint32_t) reply[14]) <<  0 ) +
-                 ( ((uint32_t) reply[15]) << 24 ) +
-                 ( ((uint32_t) reply[16]) << 16 );
+    rawEnergy  = ( ((uint32_t) replyBuf[13]) <<  8 ) +
+                 ( ((uint32_t) replyBuf[14]) <<  0 ) +
+                 ( ((uint32_t) replyBuf[15]) << 24 ) +
+                 ( ((uint32_t) replyBuf[16]) << 16 );
 
-    rawFrequency = ( ((uint16_t) reply[17]) << 8 ) +
-                   (  (uint16_t) reply[18]  << 0 );
+    rawFrequency = ( ((uint16_t) replyBuf[17]) << 8 ) +
+                   (  (uint16_t) replyBuf[18]  << 0 );
 
-    rawPower_Factor = ( ((uint16_t) reply[19]) << 8 ) +
-                      (  (uint16_t) reply[20]  << 0 );
+    rawPowerFactor = ( ((uint16_t) replyBuf[19]) << 8 ) +
+                     (  (uint16_t) replyBuf[20]  << 0 );
 
     pzem004t->measurements.voltage      = rawVoltage     / 10.0; // Raw voltage in 0.1V
     pzem004t->measurements.current      = rawCurrent     / 1000.0; // Raw current in 0.001A
     pzem004t->measurements.power        = rawPower       / 10.0; // Raw power in   0.1W
     pzem004t->measurements.energy       = rawEnergy      / 1.0; // Raw energy in  1Wh
     pzem004t->measurements.frequency    = rawFrequency   / 10.0; // Raw frequency in 0.1Hz
-    pzem004t->measurements.power_factor = rawPower_Factor/ 100.0; // Raw power factor in 0.01
+    pzem004t->measurements.powerFactor  = rawPowerFactor / 100.0; // Raw power factor in 0.01
 
     return ESP_OK;
 }
@@ -159,7 +159,7 @@ esp_err_t pzem004tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const ui
     uint8_t command [8] = { 0 };
     uint16_t crc;
 
-    // boundaries check for slave_addr
+    /* boundaries check for slave_addr */
     if( (0xF8 < slave_addr) )
     {
         return ESP_FAIL;
@@ -195,7 +195,8 @@ esp_err_t pzem004tv30_sendCmd8(const uint8_t cmd, const uint16_t rAddr, const ui
     return ESP_OK;
 }
 
-void pzem004tv30_search(void){
+/*
+void pzem004tv30_search( void ){
     static uint8_t response[7];
 
     for(uint16_t addr = 0x01; addr <= 0xF8; addr++){
@@ -209,41 +210,31 @@ void pzem004tv30_search(void){
         }
     }
 }
+*/
 
 /*!
- * PZEM004Tv30::receive
+ * pzem004tv30_receive
  *
  * Receive data from serial with buffer limit and timeout
  *
- * @param[out] resp Memory buffer to hold response. Must be at least `len` long
- * @param[in] len Max number of bytes to read
+ * @param[in] pzem004t pointer to pzem004tv30_t struct (pzem module parameters)
+ * @param[out] response Memory buffer to hold response. Must be at least `maxLength` long
+ * @param[in] maxLength Max number of bytes to read
  *
  * @return number of bytes read
 */
-uint16_t pzem004tv30_receive(uint8_t *resp, uint16_t maxLength)
+uint16_t pzem004tv30_receive( pzem004tv30_t *pzem004t, uint8_t *response, uint16_t maxLength )
 {
-/*    unsigned long startTime = millis(); // Start time for Timeout
-    uint8_t index = 0; // Bytes we have read
-    while((index < len) && (millis() - startTime < READ_TIMEOUT))
-    {
-        if(_serial->available() > 0)
-        {
-            uint8_t c = (uint8_t)_serial->read();
+    uint8_t nbBytesReceived;
+    nbBytesReceived = uart_read_bytes( pzem004t->uart_num, response, maxLength, pdMS_TO_TICKS(100) );
 
-            resp[index++] = c;
-        }
-        yield();	// do background netw tasks while blocked for IO (prevents ESP watchdog trigger)
-    }
-*/
-    uint8_t length;
-    length = uart_read_bytes( UART_NUM_2, resp, maxLength, pdMS_TO_TICKS(100) );
-
-    // Check CRC with the number of bytes read
-    if(!pzem004tv30_checkCRC(resp, length)){
+    /* Check CRC of the received ModBus frame */
+    if( !pzem004tv30_checkCRC(response, nbBytesReceived ) ){
+        ESP_LOGW( TAG, "Received ModBus frame with incorrect CRC" );
         return 0;
     }
 
-    return length;
+    return nbBytesReceived;
 }
 
 
