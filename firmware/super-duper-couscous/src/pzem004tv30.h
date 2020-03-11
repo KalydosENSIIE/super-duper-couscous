@@ -4,7 +4,7 @@
 #include "driver/gpio.h"
 #include "driver/uart.h"
 
-#define     PZEM004TV30_MODBUS_DEFAULT_ADDRESS     ( (uint16_t) 0xF8 )
+#define     PZEM004TV30_MODBUS_DEFAULT_ADDRESS     ( (uint8_t) 0xF8 )
 
 // alarm isn't there coz I have no use for it =/
 typedef struct pzem004tv30_measurements
@@ -20,7 +20,7 @@ typedef struct pzem004tv30_measurements
 
 typedef struct pzem004tv30
 {
-    uint16_t modbus_address;
+    uint8_t modbus_address;
     uart_port_t uart_num;
     int tx_io_num;
     int rx_io_num;

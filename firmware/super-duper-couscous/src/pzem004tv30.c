@@ -7,9 +7,9 @@
 
 #define TAG "pzem004tv30"
 
-#define     UART_BUF_SIZE   150
+#define UART_BUF_SIZE   150
 
-#define     PZEM004T_ERROR_READ_INPUT_REG   ( (uint8_t) 0x84 )
+#define PZEM004T_ERROR_READ_INPUT_REG   ( (uint8_t) 0x84 )
 
 
 static uint16_t pzem004tv30_CRC16( const uint8_t *data, const uint16_t len );
@@ -19,7 +19,7 @@ typedef enum {
     PZEM004T_FUNCTION_READ_INPUT_REG    = 0x04,
     PZEM004T_FUNCTION_WRITE_SINGLE_REG  = 0x06,
     PZEM004T_FUNCTION_CALIBRATION       = 0x41,
-    PZEM004T_FUNCTION_RESET_ENERGY      = 0x42
+    PZEM004T_FUNCTION_RESET_ENERGY      = 0x42,
 } pzem004t_modbus_function_t;
 
 
@@ -32,8 +32,15 @@ typedef enum {
 
 
 
-
-
+/*!
+ * pzem004tv30_initialize_UART
+ *
+ * Setups and configures the UART driver for PZEM004T module communication.
+ *
+ * @param[in] pzem004t - (pzem004tv30_t *) pointer to pzem004t struct 'object'
+ *
+ * @return success
+*/
 esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t)
 {
     /* Configure parameters of an UART driver,
@@ -82,6 +89,16 @@ esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t)
     return ESP_OK;
 }
 
+
+/*!
+ * pzem004tv30_update_measurements
+ *
+ * Queries the pzem004t module for voltage, current, power, energy, frequency, and power factor.
+ *
+ * @param[in] pzem004t - (pzem004tv30_t *) pointer to pzem004t struct 'object'
+ *
+ * @return success
+*/
 esp_err_t pzem004tv30_update_measurements( pzem004tv30_t * const pzem004t )
 {
     uint16_t rawVoltage;
@@ -90,20 +107,21 @@ esp_err_t pzem004tv30_update_measurements( pzem004tv30_t * const pzem004t )
 
     uint8_t replyBuf[25];
 
-    if( ESP_FAIL ==  pzem004tv30_sendCmd8(pzem004t, PZEM004T_FUNCTION_READ_INPUT_REG, 0x00, 0x0A, 0xF8) )
+    /* Read 10 registers starting from the 0th one, on device at given modbus address */
+    if( ESP_FAIL ==  pzem004tv30_sendCmd8( pzem004t, (uint8_t) PZEM004T_FUNCTION_READ_INPUT_REG, (uint16_t) 0x00, (uint16_t) 0x0A, pzem004t->modbus_address ) )
     {
-        ESP_LOGW(TAG, "Failed to send command to pzem module.\n");
+        ESP_LOGW( TAG, "Failed to send command to pzem module.\n" );
         return ESP_FAIL;
     }
     if( 0 == pzem004tv30_receive( pzem004t, replyBuf, 25 ) )
     {
-        ESP_LOGW(TAG, "Failed to receive reply from pzem module.\n");
+        ESP_LOGW( TAG, "Failed to receive reply from pzem module.\n" );
         return ESP_FAIL;
     }
 
     if( PZEM004T_ERROR_READ_INPUT_REG == replyBuf[1] )
     {
-        ESP_LOGW(TAG, "Received incorrect reply from pzem module. "
+        ESP_LOGW( TAG, "Received incorrect reply from pzem module. "
                       "Error num : %02X\n", replyBuf[2] );
         return ESP_FAIL;
     }

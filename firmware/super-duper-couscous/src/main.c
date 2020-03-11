@@ -24,17 +24,26 @@ void vMeasurementTask( void *pvParameters )
 
     pzem004tv30_initialize_UART( &pzem004t );
 
-    
 
-    for( ;; )
+    printf("Entering vMeasurementTask infinite loop\n");
+    esp_err_t pass;
+    while( 1 )
     {
         
-        printf("Entering vMeasurementTask infinite loop\n");
-
-        pzem004tv30_update_measurements( &pzem004t );
         
-        printf("%.2fV, %.2fA, %.2fW, %.2fWh, %.2fHz, pf=%.2f\n", pzem004t.measurements.voltage, pzem004t.measurements.current, pzem004t.measurements.power, pzem004t.measurements.energy, pzem004t.measurements.frequency, pzem004t.measurements.powerFactor);
-        vTaskDelay( pdMS_TO_TICKS(1000) );
+
+        pass = pzem004tv30_update_measurements( &pzem004t );
+        
+        if( ESP_OK == pass )
+        {
+            printf("%.1fV, %.2fA, %.2fW, %.2fWh, %.2fHz, pf=%.2f\n", pzem004t.measurements.voltage, pzem004t.measurements.current, pzem004t.measurements.power, pzem004t.measurements.energy, pzem004t.measurements.frequency, pzem004t.measurements.powerFactor);
+        }
+        else
+        {
+            printf( "Error communicating with the PZEM004t module !\n" );
+        }
+        
+        vTaskDelay( pdMS_TO_TICKS(500) );
     }
 }
 
