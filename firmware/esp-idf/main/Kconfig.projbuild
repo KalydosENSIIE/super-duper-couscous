@@ -1,14 +1,18 @@
 # put here your custom config value
-menu "Example Configuration"
+menu "Super-Duper Configuration"
+
 config ESP_WIFI_SSID
     string "WiFi SSID"
     default "myssid"
     help
-	SSID (network name) for the example to connect to.
+	SSID (network name) for the esp32 to connect to.
 
 config ESP_WIFI_PASSWORD
     string "WiFi Password"
     default "mypassword"
     help
-	WiFi password (WPA or WPA2) for the example to use.
+	WiFi password (WPA or WPA2) for the esp32 to use.
+
+
+
 endmenu

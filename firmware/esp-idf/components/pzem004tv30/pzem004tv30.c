@@ -41,7 +41,7 @@ typedef enum {
  *
  * @return success
 */
-esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t)
+esp_err_t pzem004tv30_initialize_UART( pzem004tv30_t * pzem004t )
 {
     /* Configure parameters of an UART driver,
      * communication pins and install the driver */
@@ -85,7 +85,7 @@ esp_err_t pzem004tv30_initialize_UART(pzem004tv30_t * pzem004t)
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Successfully configured UART.\n");
+    ESP_LOGI(TAG, "Successfully configured pzem004t UART.\n");
     return ESP_OK;
 }
 
