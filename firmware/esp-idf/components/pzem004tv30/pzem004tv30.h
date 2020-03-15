@@ -6,7 +6,7 @@
 
 #define     PZEM004TV30_MODBUS_DEFAULT_ADDRESS     ( (uint8_t) 0xF8 )
 
-// alarm isn't there coz I have no use for it =/
+// alarm isn't there because I have no use for it.
 typedef struct pzem004tv30_measurements
 {
     float voltage;      // V
@@ -14,7 +14,7 @@ typedef struct pzem004tv30_measurements
     float power;        // W
     float energy;       // Wh
     float frequency;    // Hz
-    float powerFactor; // .
+    float powerFactor;  // .
 } pzem004tv30_measurements_t;
 
 

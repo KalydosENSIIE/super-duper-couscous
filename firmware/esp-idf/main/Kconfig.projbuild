@@ -1,18 +1,31 @@
 # put here your custom config value
 menu "Super-Duper Configuration"
 
-config ESP_WIFI_SSID
-    string "WiFi SSID"
-    default "myssid"
-    help
-	SSID (network name) for the esp32 to connect to.
+    menu "WiFi Configuration"
+        config ESP_WIFI_SSID
+            string "WiFi SSID"
+            default "myssid"
+            help
+                SSID (network name) for the esp32 to connect to.
 
-config ESP_WIFI_PASSWORD
-    string "WiFi Password"
-    default "mypassword"
-    help
-	WiFi password (WPA or WPA2) for the esp32 to use.
+        config ESP_WIFI_PASSWORD
+            string "WiFi Password"
+            default "mypassword"
+            help
+                WiFi password (WPA or WPA2) for the esp32 to use.
 
+        config ESP_WIFI_RECONNECT_MAXIMUM_RETRY
+            int "WiFi connect retries"
+            default 5
+            help
+                Number of subsequent times to retry connecting to 
+                WiFi AP upon disconnection.
+    endmenu
 
+    config ESP_MEASUREMENT_INTERVAL_MS
+        int "Energy measurement delay interval (ms)"
+        default 500
+        help
+            Time delay between each query to the PZEM004t module. In milliseconds.
 
 endmenu
