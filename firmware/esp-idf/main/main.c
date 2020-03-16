@@ -4,6 +4,8 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "freertos/queue.h"
 #include "freertos/event_groups.h"
 
 #include "esp_system.h"
@@ -11,11 +13,17 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "tcpip_adapter.h"
+
 
 #include "lwip/err.h"
 #include "lwip/sys.h"
+#include "lwip/sockets.h"
+#include "lwip/dns.h"
+#include "lwip/netdb.h"
 
 #include "pzem004tv30.h"
+#include "mqtt.h"
 
 #define TAG "MAIN"
 
@@ -26,6 +34,8 @@
 #define WIFI_PASS               CONFIG_ESP_WIFI_PASSWORD
 #define WIFI_MAXIMUM_RETRY      CONFIG_ESP_WIFI_RECONNECT_MAXIMUM_RETRY
 #define MEASUREMENT_INTERVAL_MS CONFIG_ESP_MEASUREMENT_INTERVAL_MS
+
+
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -45,6 +55,10 @@ static void event_handler( void *arg, esp_event_base_t event_base,
                                 int32_t event_id, void *event_data );
 static void wifi_init_sta( void );
 void vMeasurementTask ( void *pvParameters );
+
+
+
+
 
 
 
@@ -205,7 +219,9 @@ void app_main()
 {
     esp_log_level_set("*", ESP_LOG_ERROR);
     esp_log_level_set("PZEM004TV30", ESP_LOG_DEBUG);
+    esp_log_level_set("MQTT", ESP_LOG_DEBUG);
     esp_log_level_set("MAIN", ESP_LOG_DEBUG);
+    
 
     xTaskCreatePinnedToCore( vMeasurementTask,  "measure", 4096, NULL, 1, NULL, CPU_0);
 

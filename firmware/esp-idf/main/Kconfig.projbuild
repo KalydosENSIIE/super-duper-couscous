@@ -27,5 +27,11 @@ menu "Super-Duper Configuration"
         default 500
         help
             Time delay between each query to the PZEM004t module. In milliseconds.
+    
+    config ESP_MQTT_BROKER_URL
+        string "MQTT broker URL"
+        default ""
+        help
+            URL of the MQTT broker to connect to.
 
 endmenu
